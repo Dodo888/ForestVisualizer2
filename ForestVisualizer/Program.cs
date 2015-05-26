@@ -17,23 +17,7 @@ namespace ForestVisualizer
     {
         static void Main(string[] args)
         {
-            var lines = File.ReadAllLines("test.txt");
-            var map = new char[lines.Length - 3, lines[0].Length];
-            for (int row = 0; row < lines.Length - 3; row++)
-            {
-                for (int col = 0; col < lines[row].Length; col++)
-                    map[row, col] = lines[row][col];
-            }
-            string[] playerString = lines[lines.Length - 3].Split();
-            Player player1 = new Player(1, "Bilbo", new Point(int.Parse(playerString[1]), int.Parse(playerString[0])),
-                new Point(int.Parse(playerString[3]), int.Parse(playerString[2])), int.Parse(playerString[4]));
-            playerString = lines[lines.Length - 2].Split();
-            Player player2 = new Player(2, "Legolas", new Point(int.Parse(playerString[1]), int.Parse(playerString[0])),
-                new Point(int.Parse(playerString[3]), int.Parse(playerString[2])), int.Parse(playerString[4]));
-            Player[] players = new Player[2]{player1, player2};
-            int fog = int.Parse(lines[lines.Length - 1]);
-            string[] all = new string[] { "Aragorn", "Bilbo", "Frodo", "Gandalf", "Gollum", "Legolas", "Thranduil", "Thorin" };
-            FormForestVisualizer visualizer = new FormForestVisualizer(/*map,*/ players, all, fog);
+            FormForestVisualizer visualizer = new FormForestVisualizer();
             visualizer.RunForestVisualization();
         }
     }
@@ -62,15 +46,13 @@ namespace ForestVisualizer
         private Stream stream;
         private Serializer serializer;
 
-        public FormForestVisualizer(/*char[,] map,*/ Player[] players, string[] all, int fog)
+        public FormForestVisualizer()
         {
-            //this.map = CharMapToIntMap(map);
             this.map = new int[0, 0];
-            this.fog = fog;
-            this.players = players;
+            this.fog = 2;
             this.leaderBoard = new List<TablePosition>();
-            foreach (var player in all)
-                this.leaderBoard.Add(new TablePosition(player));
+            //foreach (var player in all)
+            //    this.leaderBoard.Add(new TablePosition(player));
             this.names = new Dictionary<int, string>();
             this.names.Add(2, "Block");
             this.names.Add(1, "Terrain");
@@ -87,7 +69,7 @@ namespace ForestVisualizer
             clientSocket.Send(serializer.Serialize(hello).ToArray());
 
             this.gameStarted = false;
-            this.winner = "";
+            this.winner = "Ещё никто";
 
             drawingAction = DrawMap;
             DoubleBuffered = true;
@@ -160,23 +142,29 @@ namespace ForestVisualizer
         {
             graphics.FillRectangle(Brushes.Black, 0, 0,
                 Width, Height);
-            for (int x = 0; x < map.GetLength(1); x++)
-                for (int y = 0; y < map.GetLength(0); y++)
-                    graphics.DrawImage(Visible(new Point(y,x)) ? images[names[map[y,x]]] : images[names[map[y,x]]+"Fog"],
-                        x * scaleH, y * scaleH,
-                        scaleH, scaleH);
-            graphics.DrawImage(Visible(players[0].Target) ? images["Finish"] : images["FinishFog"],
-                players[0].Target.Y * scaleH, players[0].Target.X * scaleH,
-                scaleH, scaleH);
-            foreach (var citizen in players)
+            if (gameStarted)
             {
-                graphics.DrawImage(images["Citizen"+citizen.Id.ToString()],
-                    citizen.CurrentPosition.Y * scaleH, citizen.CurrentPosition.X * scaleH,
+                for (int x = 0; x < map.GetLength(1); x++)
+                    for (int y = 0; y < map.GetLength(0); y++)
+                        graphics.DrawImage(Visible(new Point(y, x)) ? images[names[map[y, x]]] : images[names[map[y, x]] + "Fog"],
+                            x * scaleH, y * scaleH,
+                            scaleH, scaleH);
+                graphics.DrawImage(Visible(players[0].Target) ? images["Finish"] : images["FinishFog"],
+                    players[0].Target.Y * scaleH, players[0].Target.X * scaleH,
                     scaleH, scaleH);
-                graphics.DrawString(citizen.Nick[0].ToString(),
-                    new Font("Calibri", (int)(Math.Min(scaleW, scaleH) / 2), FontStyle.Bold), Brushes.White,
-                    new RectangleF(citizen.CurrentPosition.Y * scaleH, citizen.CurrentPosition.X * scaleH,
-                        scaleH, scaleH), format);
+                foreach (var citizen in players)
+                {
+                    if (citizen.Hp > 0)
+                    {
+                        graphics.DrawImage(images["Citizen" + citizen.Id.ToString()],
+                            citizen.CurrentPosition.Y * scaleH, citizen.CurrentPosition.X * scaleH,
+                            scaleH, scaleH);
+                        graphics.DrawString(citizen.Nick[0].ToString(),
+                            new Font("Calibri", (int)(Math.Min(scaleW, scaleH) / 2), FontStyle.Bold), Brushes.White,
+                            new RectangleF(citizen.CurrentPosition.Y * scaleH, citizen.CurrentPosition.X * scaleH,
+                                scaleH, scaleH), format);
+                    }
+                }
             }
             var statsScale = (float)Height / 15;
             if (gameStarted)
@@ -309,15 +297,14 @@ namespace ForestVisualizer
             clientSocket.Receive(data);
             if (!gameStarted)
             {
-                /*var s = "";
-                for (int i = 0; i < data.Length; i++)
-                    s += (char)data[i];*/
                 WorldInfo world = serializer.Deserialize<WorldInfo>(new MemoryStream(data));
                 if (world != null)
                 {
                     this.players = world.Players;
                     foreach (var player in players)
                     {
+                        if (!leaderBoard.Select(x => x.Name).Contains(player.Nick))
+                            leaderBoard.Add(new TablePosition(player.Nick));
                         player.CurrentPosition = player.StartPosition;
                         player.Id = (player.Id % 2) + 1;
                     }
@@ -331,11 +318,14 @@ namespace ForestVisualizer
             {
                 string loserName = "";
                 LastMoveInfo move = serializer.Deserialize<LastMoveInfo>(new MemoryStream(data));
-                Console.WriteLine(move.GameOver);
                 foreach (var cellChange in move.ChangedCells)
                     ChangeCell(cellChange);
                 foreach (var positionChange in move.PlayersChangedPosition)
+                {
+                    Console.WriteLine(String.Format("{0} moved to {1} {2} and has {3} hp now", positionChange.Item1,
+                        positionChange.Item2.X, positionChange.Item2.Y, positionChange.Item3));
                     MakeMove(positionChange);
+                }
                 int points = 0;
                 if (move.GameOver)
                 {
@@ -354,7 +344,7 @@ namespace ForestVisualizer
                             if (position.Name == loserName)
                             {
                                 position.Loses++;
-                                points = position.Points / 3;
+                                points = Math.Max(position.Points / 3, 15);
                                 position.Points -= points;
                             }
                         foreach (var position in leaderBoard)
@@ -376,11 +366,12 @@ namespace ForestVisualizer
                         winner = "Никто не";
                     }
                     gameStarted = false;
-                    /*clientSocket.Close();
+                    clientSocket.Close();
+                    System.Threading.Thread.Sleep(100);
                     clientSocket.Connect(ipEndPoint);
                     this.stream = new NetworkStream(clientSocket, FileAccess.ReadWrite);
                     Hello hello = new Hello() { IsVisualizator = true, Name = "PROEKTOR" };
-                    clientSocket.Send(serializer.Serialize(hello).ToArray());*/
+                    clientSocket.Send(serializer.Serialize(hello).ToArray());
                 }
             }
             Answer ans = new Answer() { AnswerCode = 0 };
