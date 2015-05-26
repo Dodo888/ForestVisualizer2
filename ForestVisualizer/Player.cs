@@ -35,7 +35,7 @@ namespace ForestVisualizer
             Wins = 0;
             Draws = 0;
             Loses = 0;
-            Points = 0;
+            Points = 30;
         }
 
         public string Name;

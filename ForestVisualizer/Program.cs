@@ -189,13 +189,14 @@ namespace ForestVisualizer
                 new Font("Calibri", (int)(statsScale / 2), FontStyle.Bold), Brushes.White,
                 new RectangleF(map.GetLength(1) * scaleH + 10, 0,
                 (int)(Width - map.GetLength(1) * scaleH), statsScale), StringFormat.GenericDefault);
-            string[] statsHeader = new string[] { "Name", "HP", "DTF", "PTW" };
+            string[] statsHeader = new string[] { "Name", "HP", "DTF", "Pts" };
             string[][] playersStats = new string[2][];
             foreach (var citizen in players)
             {
+                var points = leaderBoard.Where(x => x.Name == citizen.Nick);
                 playersStats[citizen.Id - 1] = new string[] {citizen.Nick, citizen.Hp.ToString(), 
                     (Math.Abs(citizen.Target.X - citizen.CurrentPosition.X) + Math.Abs(citizen.Target.Y - citizen.CurrentPosition.Y)).ToString(), 
-                    "10", citizen.Id.ToString()};
+                    points.ElementAt(0).Points.ToString(), citizen.Id.ToString()};
             }
             for (int i = 0; i < 3; i++)
                 for (int j = 0; j < 4; j++)
