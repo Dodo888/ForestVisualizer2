@@ -38,21 +38,18 @@ namespace ForestVisualizer
 
         private List<TablePosition> leaderBoard;
 
-        private Timer timer;
-        private int tickCount = 0;
+        private System.Windows.Forms.Timer timer;
 
         private IPEndPoint ipEndPoint;    //Конечная точка (IP и порт)
-        private Socket clientSocket;
-        private Stream stream;
+        private Socket clientSocket;        
         private Serializer serializer;
 
         public FormForestVisualizer()
         {
             this.map = new int[0, 0];
+            this.players = new Player[0];
             this.fog = 2;
             this.leaderBoard = new List<TablePosition>();
-            //foreach (var player in all)
-            //    this.leaderBoard.Add(new TablePosition(player));
             this.names = new Dictionary<int, string>();
             this.names.Add(2, "Block");
             this.names.Add(1, "Terrain");
@@ -60,13 +57,7 @@ namespace ForestVisualizer
             this.names.Add(3, "Trap");
 
             this.ipEndPoint = new IPEndPoint(IPAddress.Loopback, 20000);
-            this.clientSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
             this.serializer = new Serializer();
-            this.clientSocket.Connect(ipEndPoint);
-            this.stream = new NetworkStream(clientSocket, FileAccess.ReadWrite);
-
-            Hello hello = new Hello() { IsVisualizator = true, Name = "PROEKTOR" };
-            clientSocket.Send(serializer.Serialize(hello).ToArray());
 
             this.gameStarted = false;
             this.winner = "Ещё никто";
@@ -80,7 +71,24 @@ namespace ForestVisualizer
             timer = new Timer();
             timer.Interval = 1;
             timer.Tick += TimerTick;
+            //RunGame();
             timer.Start();
+        }
+
+        public void RunGame()
+        {
+            Console.ReadKey();
+            Console.WriteLine("Start visualizing");
+            StartGame();
+        }
+
+        private void StartGame()
+        {
+            this.clientSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+            this.clientSocket.Connect(ipEndPoint);
+
+            Hello hello = new Hello() { IsVisualizator = true, Name = "PROEKTOR" };
+            clientSocket.Send(serializer.Serialize(hello).ToArray());
         }
 
         private int[,] CharMapToIntMap(char[,] map)
@@ -99,7 +107,7 @@ namespace ForestVisualizer
 
         private void InitImages()
         {
-            images = Directory.EnumerateFiles("Images\\", "*png").ToDictionary(Path.GetFileNameWithoutExtension, 
+            images = Directory.EnumerateFiles("..\\..\\Images\\", "*png").ToDictionary(Path.GetFileNameWithoutExtension, 
                                                                                Image.FromFile);
         }
 
@@ -142,13 +150,13 @@ namespace ForestVisualizer
         {
             graphics.FillRectangle(Brushes.Black, 0, 0,
                 Width, Height);
-            if (gameStarted)
+            for (int x = 0; x < map.GetLength(1); x++)
+                for (int y = 0; y < map.GetLength(0); y++)
+                    graphics.DrawImage(Visible(new Point(y, x)) ? images[names[map[y, x]]] : images[names[map[y, x]] + "Fog"],
+                        x * scaleH, y * scaleH,
+                        scaleH, scaleH);
+            if (players.Length > 0)
             {
-                for (int x = 0; x < map.GetLength(1); x++)
-                    for (int y = 0; y < map.GetLength(0); y++)
-                        graphics.DrawImage(Visible(new Point(y, x)) ? images[names[map[y, x]]] : images[names[map[y, x]] + "Fog"],
-                            x * scaleH, y * scaleH,
-                            scaleH, scaleH);
                 graphics.DrawImage(Visible(players[0].Target) ? images["Finish"] : images["FinishFog"],
                     players[0].Target.Y * scaleH, players[0].Target.X * scaleH,
                     scaleH, scaleH);
@@ -320,6 +328,7 @@ namespace ForestVisualizer
                 LastMoveInfo move = serializer.Deserialize<LastMoveInfo>(new MemoryStream(data));
                 foreach (var cellChange in move.ChangedCells)
                     ChangeCell(cellChange);
+                Console.WriteLine("Game over? " + move.GameOver);
                 foreach (var positionChange in move.PlayersChangedPosition)
                 {
                     Console.WriteLine(String.Format("{0} moved to {1} {2} and has {3} hp now", positionChange.Item1,
@@ -344,7 +353,7 @@ namespace ForestVisualizer
                             if (position.Name == loserName)
                             {
                                 position.Loses++;
-                                points = Math.Max(position.Points / 3, 15);
+                                points = Math.Min(position.Points / 3, 15);
                                 position.Points -= points;
                             }
                         foreach (var position in leaderBoard)
@@ -367,19 +376,19 @@ namespace ForestVisualizer
                     }
                     gameStarted = false;
                     clientSocket.Close();
-                    System.Threading.Thread.Sleep(100);
-                    clientSocket.Connect(ipEndPoint);
-                    this.stream = new NetworkStream(clientSocket, FileAccess.ReadWrite);
-                    Hello hello = new Hello() { IsVisualizator = true, Name = "PROEKTOR" };
-                    clientSocket.Send(serializer.Serialize(hello).ToArray());
                 }
             }
-            Answer ans = new Answer() { AnswerCode = 0 };
-            clientSocket.Send(serializer.Serialize(ans).ToArray());
+            if (gameStarted)
+            {
+                Answer ans = new Answer() { AnswerCode = 0 };
+                clientSocket.Send(serializer.Serialize(ans).ToArray());
+            }
         }
 
         void TimerTick(object sender, EventArgs args)
         {
+            if (!gameStarted)
+                RunGame();
             RecieveInfo();
             Invalidate();
         }
