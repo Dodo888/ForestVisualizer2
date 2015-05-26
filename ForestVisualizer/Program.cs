@@ -306,11 +306,14 @@ namespace ForestVisualizer
 
         private void RecieveInfo()
         {
-            byte[] data = new byte[6144];
-            clientSocket.Receive(data);
+            byte[] data1 = new byte[1024];
+            clientSocket.Receive(data1);
             if (!gameStarted)
             {
-                WorldInfo world = serializer.Deserialize<WorldInfo>(new MemoryStream(data));
+                byte[] data2 = new byte[1024];
+                clientSocket.Receive(data2);
+                var data = data1.Concat(data2);
+                WorldInfo world = serializer.Deserialize<WorldInfo>(new MemoryStream(data.ToArray()));
                 if (world != null)
                 {
                     this.players = world.Players;
@@ -330,7 +333,7 @@ namespace ForestVisualizer
             else
             {
                 string loserName = "";
-                LastMoveInfo move = serializer.Deserialize<LastMoveInfo>(new MemoryStream(data));
+                LastMoveInfo move = serializer.Deserialize<LastMoveInfo>(new MemoryStream(data1));
                 foreach (var cellChange in move.ChangedCells)
                     ChangeCell(cellChange);
                 Console.WriteLine("Game over? " + move.GameOver);
