@@ -55,6 +55,7 @@ namespace ForestVisualizer
             this.names.Add(1, "Terrain");
             this.names.Add(4, "Life");
             this.names.Add(3, "Trap");
+            this.names.Add(5, "Tomb");
 
             this.ipEndPoint = new IPEndPoint(IPAddress.Loopback, 20000);
             this.serializer = new Serializer();
@@ -141,7 +142,8 @@ namespace ForestVisualizer
         {
             foreach (var citizen in players)
                 if (Math.Abs(citizen.CurrentPosition.X - cell.X) <= fog &&
-                    Math.Abs(citizen.CurrentPosition.Y - cell.Y) <= fog)
+                    Math.Abs(citizen.CurrentPosition.Y - cell.Y) <= fog &&
+                    citizen.Hp > 0)
                     return true;
             return false;
         }
@@ -292,6 +294,8 @@ namespace ForestVisualizer
                 {
                     player.CurrentPosition = move.Item2;
                     player.Hp = move.Item3;
+                    if (player.Hp == 0)
+                        map[player.CurrentPosition.X, player.CurrentPosition.Y] = 5;
                 }
         }
 
