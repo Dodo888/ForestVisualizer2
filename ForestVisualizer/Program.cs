@@ -306,7 +306,7 @@ namespace ForestVisualizer
 
         private void RecieveInfo()
         {
-            byte[] data = new byte[3072];
+            byte[] data = new byte[6144];
             clientSocket.Receive(data);
             if (!gameStarted)
             {
